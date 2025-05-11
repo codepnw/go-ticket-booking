@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  db:
+    container_name: go-ticket-booking
+    image: postgres:16
+    restart: always
+    environment:
+      POSTGRES_USER: ${PG_USER}
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_DB: ${PG_DBNAME}
+    ports:
+      - "${PG_PORT}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+volumes:
+  db_data:
