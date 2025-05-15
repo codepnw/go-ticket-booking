@@ -7,14 +7,14 @@ import (
 	"github.com/codepnw/go-ticket-booking/internal/api/rest"
 	"github.com/codepnw/go-ticket-booking/internal/api/rest/routes"
 	"github.com/codepnw/go-ticket-booking/internal/helper"
-	"github.com/codepnw/go-ticket-booking/internal/store"
+	"github.com/codepnw/go-ticket-booking/internal/database"
 	"github.com/gofiber/fiber/v2"
 )
 
 func StartServer(config config.AppConfig) {
 	app := fiber.New()
 
-	db, err := store.InitPostgresDB(config.DBAddr)
+	db, err := database.InitPostgresDB(config.DBAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -42,4 +42,5 @@ func StartServer(config config.AppConfig) {
 
 func setupRoutes(rh *rest.ConfigRestHandler) {
 	routes.SetupUserRoutes(rh)
+	routes.SetupEventRoutes(rh)
 }
