@@ -15,10 +15,17 @@ func SetupEventRoutes(rh *rest.ConfigRestHandler) {
 	handler := handler.NewEventHandler(uc)
 
 	pvtRoutes := app.Group("/events", rh.Auth.Authorize)
-
 	pvtRoutes.Post("/", handler.AddEvent)
 	pvtRoutes.Get("/", handler.ListEvents)
 	pvtRoutes.Get("/:id", handler.GetEventByID)
 	pvtRoutes.Patch("/:id", handler.EditEvent)
 	pvtRoutes.Delete("/:id", handler.DeleteEvent)
+
+	// Locations
+	locRoutes := app.Group("/locations")
+	locRoutes.Post("/", handler.CreateLocation)
+	locRoutes.Get("/", handler.ListLocations)
+	locRoutes.Get("/:id", handler.GetLocation)
+	locRoutes.Patch("/:id", handler.UpdateLocation)
+	locRoutes.Delete("/:id", handler.DeleteLocation)
 }
