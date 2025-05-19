@@ -53,8 +53,7 @@ func (u *eventUsecase) CreateEvent(ctx context.Context, req *dto.EventRequest) (
 		Description: req.Description,
 		StartTime:   *req.StartTime,
 		EndTime:     *req.EndTime,
-		// TODO: update later
-		LocationID: 1,
+		LocationID: req.LocationID,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)

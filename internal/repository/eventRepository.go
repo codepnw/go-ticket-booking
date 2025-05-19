@@ -159,7 +159,7 @@ func (r *eventRepository) CreateLocation(ctx context.Context, l *domain.Location
 		VALUES ($1, $2, $3, $4, $5) RETURNING id;
 	`
 	return r.db.QueryRowContext(
-		ctx, 
+		ctx,
 		query,
 		l.Name,
 		l.Description,
@@ -231,8 +231,8 @@ func (r *eventRepository) UpdateLocation(ctx context.Context, l *domain.Location
 		WHERE id = $6
 	`
 	res, err := r.db.ExecContext(
-		ctx, 
-		query, 
+		ctx,
+		query,
 		l.Name,
 		l.Description,
 		l.Address,
