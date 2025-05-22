@@ -6,8 +6,8 @@ import (
 	"github.com/codepnw/go-ticket-booking/config"
 	"github.com/codepnw/go-ticket-booking/internal/api/rest"
 	"github.com/codepnw/go-ticket-booking/internal/api/rest/routes"
-	"github.com/codepnw/go-ticket-booking/internal/helper"
 	"github.com/codepnw/go-ticket-booking/internal/database"
+	"github.com/codepnw/go-ticket-booking/internal/helper"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -44,4 +44,5 @@ func setupRoutes(rh *rest.ConfigRestHandler) {
 	routes.SetupUserRoutes(rh)
 	routes.SetupEventRoutes(rh)
 	routes.SetupSectionRoutes(rh)
+	routes.SetupSeatRoutes(rh)
 }

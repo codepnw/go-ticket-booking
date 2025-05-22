@@ -39,3 +39,11 @@ func BadRequestResponse(ctx *fiber.Ctx, msg string) error {
 func InternalError(ctx *fiber.Ctx, err error) error {
 	return ctx.Status(http.StatusInternalServerError).JSON(&fiber.Map{"error": err.Error()})
 }
+
+func GetParamsID(ctx *fiber.Ctx, key string) (int64, error) {
+	id, err := ctx.ParamsInt(key)
+	if err != nil {
+		return -1, BadRequestResponse(ctx, "invalid params id")
+	}
+	return int64(id), nil
+}
