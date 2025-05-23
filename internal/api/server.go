@@ -45,4 +45,5 @@ func setupRoutes(rh *rest.ConfigRestHandler) {
 	routes.SetupEventRoutes(rh)
 	routes.SetupSectionRoutes(rh)
 	routes.SetupSeatRoutes(rh)
+	routes.SetupBookingRoutes(rh)
 }

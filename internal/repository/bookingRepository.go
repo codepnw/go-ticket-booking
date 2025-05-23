@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/codepnw/go-ticket-booking/internal/domain"
+	"github.com/codepnw/go-ticket-booking/internal/dto"
 	"github.com/codepnw/go-ticket-booking/internal/helper"
 )
 
@@ -15,6 +17,7 @@ type BookingRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.Booking, error)
 	ListByUserID(ctx context.Context, userID int64) ([]*domain.Booking, error)
 	ListByEventID(ctx context.Context, eventID int64) ([]*domain.Booking, error)
+	Update(ctx context.Context, bookingID int64, input *dto.UpdateBookingRequest) error
 	Confirm(ctx context.Context, bookingID int64) error
 	Cancel(ctx context.Context, bookingID int64) error
 	IsAvailable(ctx context.Context, seatID int64) (bool, error)
@@ -33,13 +36,15 @@ func (r *bookingRepository) Create(ctx context.Context, req *domain.Booking) err
 		INSERT INTO bookings (user_id, event_id, seat_id, status, booked_at)
 		VALUES ($1, $2, $3, $4, $5) RETURNING id
 	`
-	err := r.db.QueryRowContext(ctx, query).Scan(
+	err := r.db.QueryRowContext(
+		ctx,
+		query,
 		&req.UserID,
 		&req.EventID,
 		&req.SeatID,
 		&req.Status,
 		&helper.LocalTime,
-	)
+	).Scan(&req.ID)
 
 	return err
 }
@@ -58,7 +63,7 @@ func (r *bookingRepository) GetByID(ctx context.Context, id int64) (*domain.Book
 		&booking.SeatID,
 		&booking.Status,
 		&booking.BookedAt,
-		&booking.CanceledAt,
+		&booking.CancelledAt,
 	)
 	if err != nil {
 		return nil, err
@@ -89,7 +94,7 @@ func (r *bookingRepository) ListByUserID(ctx context.Context, userID int64) ([]*
 			&b.SeatID,
 			&b.Status,
 			&b.BookedAt,
-			&b.CanceledAt,
+			&b.CancelledAt,
 		)
 		if err != nil {
 			return nil, err
@@ -122,7 +127,7 @@ func (r *bookingRepository) ListByEventID(ctx context.Context, eventID int64) ([
 			&b.SeatID,
 			&b.Status,
 			&b.BookedAt,
-			&b.CanceledAt,
+			&b.CancelledAt,
 		)
 		if err != nil {
 			return nil, err
@@ -135,7 +140,7 @@ func (r *bookingRepository) ListByEventID(ctx context.Context, eventID int64) ([
 
 func (r *bookingRepository) Confirm(ctx context.Context, bookingID int64) error {
 	query := `
-		UPDATE bookings SET status = 'confirmed'
+		UPDATE bookings SET status = 'booked'
 		WHERE id = $1 AND status = 'pending'
 	`
 	res, err := r.db.ExecContext(ctx, query, bookingID)
@@ -149,16 +154,47 @@ func (r *bookingRepository) Confirm(ctx context.Context, bookingID int64) error 
 	}
 
 	if rows == 0 {
-		return errors.New("booking not found or already confirmed")
+		return errors.New("booking not found or already booked")
 	}
 
 	return nil
 }
 
+func (r *bookingRepository) Update(ctx context.Context, bookingID int64, input *dto.UpdateBookingRequest) error {
+	query := `UPDATE bookings SET`
+	params := []any{}
+	i := 1
+
+	if input.UserID != nil {
+		query += fmt.Sprintf(" user_id = $%d", i)
+		params = append(params, *input.UserID)
+		i++
+	}
+
+	if input.EventID != nil {
+		query += fmt.Sprintf(" event_id = $%d", i)
+		params = append(params, *input.EventID)
+		i++
+	}
+
+	if input.SeatID != nil {
+		query += fmt.Sprintf(" seat_id = $%d", i)
+		params = append(params, *input.SeatID)
+		i++
+	}
+
+	query = strings.TrimSuffix(query, ",")
+	query += fmt.Sprintf(" WHERE id = $%d", i)
+	params = append(params, bookingID)
+
+	_, err := r.db.ExecContext(ctx, query, params...)
+	return err
+}
+
 func (r *bookingRepository) Cancel(ctx context.Context, bookingID int64) error {
 	query := `
-		UPDATE bookings SET status = 'canceled', cancelled_at = $1
-		WHERE id = $2
+		UPDATE bookings SET status = 'cancelled', cancelled_at = $1
+		WHERE id = $2 AND status IN ('pending', 'booked')
 	`
 	res, err := r.db.ExecContext(ctx, query, helper.LocalTime, bookingID)
 	if err != nil {
@@ -182,7 +218,7 @@ func (r *bookingRepository) IsAvailable(ctx context.Context, seatID int64) (bool
 
 	query := `
 		SELECT COUNT(*) FROM bookings
-		WHERE seat_id = $1 AND status = 'confirmed'
+		WHERE seat_id = $1 AND status = 'booked'
 	`
 	err := r.db.QueryRowContext(ctx, query, seatID).Scan(&count)
 	if err != nil {

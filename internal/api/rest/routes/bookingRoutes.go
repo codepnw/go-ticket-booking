@@ -20,7 +20,8 @@ func SetupBookingRoutes(rh *rest.ConfigRestHandler) {
 	bookRoutes.Get("/:bookingID", handler.GetBookingByID)
 	bookRoutes.Get("/event/:eventID", handler.GetBookingsByEvent)
 	bookRoutes.Get("/user/:userID", handler.GetBookingsByUser)
-	bookRoutes.Get("/:bookingID", handler.ConfirmBooking)
-	bookRoutes.Get("/:bookingID", handler.CancelBooking)
+	bookRoutes.Get("/:bookingID/confirm", handler.ConfirmBooking)
+	bookRoutes.Get("/:bookingID/cancel", handler.CancelBooking)
 	bookRoutes.Get("/seat/:seatID", handler.AvailableBooking)
+	bookRoutes.Patch("/:bookingID", handler.UpdateBooking)
 }

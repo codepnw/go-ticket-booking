@@ -14,6 +14,7 @@ type BookingUsecase interface {
 	GetByID(ctx context.Context, id int64) (*domain.Booking, error)
 	ListByUserID(ctx context.Context, userID int64) ([]*domain.Booking, error)
 	ListByEventID(ctx context.Context, eventID int64) ([]*domain.Booking, error)
+	Update(ctx context.Context, bookingID int64, input *dto.UpdateBookingRequest) error
 	Confirm(ctx context.Context, bookingID int64) error
 	Cancel(ctx context.Context, bookingID int64) error
 	IsAvailable(ctx context.Context, seatID int64) (bool, error)
@@ -31,14 +32,12 @@ func (u *bookingUsecase) Create(ctx context.Context, req *dto.CreateBookingReque
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
-	u.repo.Create(ctx, &domain.Booking{
+	return u.repo.Create(ctx, &domain.Booking{
 		UserID:  req.UserID,
 		EventID: req.EventID,
 		SeatID:  req.SeatID,
 		Status:  string(dto.StatusPending),
 	})
-
-	panic("")
 }
 
 func (u *bookingUsecase) GetByID(ctx context.Context, id int64) (*domain.Booking, error) {
@@ -60,6 +59,17 @@ func (u *bookingUsecase) ListByEventID(ctx context.Context, eventID int64) ([]*d
 	defer cancel()
 
 	return u.repo.ListByEventID(ctx, eventID)
+}
+
+func (u *bookingUsecase) Update(ctx context.Context, bookingID int64, input *dto.UpdateBookingRequest) error {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
+	defer cancel()
+
+	if input.UserID == nil && input.EventID == nil && input.SeatID == nil {
+		return errors.New("no fields to update")
+	}
+
+	return u.repo.Update(ctx, bookingID, input)
 }
 
 func (u *bookingUsecase) Confirm(ctx context.Context, bookingID int64) error {

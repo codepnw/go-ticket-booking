@@ -87,6 +87,24 @@ func (h *bookingHandler) GetBookingsByEvent(ctx *fiber.Ctx) error {
 	return rest.SuccessResponse(ctx, "bookings by event", bookings)
 }
 
+func (h *bookingHandler) UpdateBooking(ctx *fiber.Ctx) error {
+	id, err := rest.GetParamsID(ctx, bookingID)
+	if err != nil {
+		return err
+	}
+
+	var req dto.UpdateBookingRequest
+	if err := ctx.BodyParser(&req); err != nil {
+		return rest.BadRequestResponse(ctx, err.Error())
+	}
+
+	if err := h.uc.Update(ctx.Context(), id, &req); err != nil {
+		return rest.InternalError(ctx, err)
+	}
+
+	return rest.SuccessResponse(ctx, "booking updated", req)
+}
+
 func (h *bookingHandler) ConfirmBooking(ctx *fiber.Ctx) error {
 	id, err := rest.GetParamsID(ctx, bookingID)
 	if err != nil {
