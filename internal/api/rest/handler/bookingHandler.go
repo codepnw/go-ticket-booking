@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"database/sql"
+
 	"github.com/codepnw/go-ticket-booking/internal/api/rest"
 	"github.com/codepnw/go-ticket-booking/internal/dto"
 	"github.com/codepnw/go-ticket-booking/internal/usecase"
@@ -10,19 +12,21 @@ import (
 
 const (
 	bookingID = "bookingID"
-	userID = "userID"
-	eventID = "eventID"
-	seatID = "seatID"
+	userID    = "userID"
+	eventID   = "eventID"
+	seatID    = "seatID"
 )
 
 type bookingHandler struct {
-	uc usecase.BookingUsecase
+	db        *sql.DB
+	uc        usecase.BookingUsecase
 	validator *validator.Validate
 }
 
-func NewBookingHandler(uc usecase.BookingUsecase) *bookingHandler {
+func NewBookingHandler(db *sql.DB, uc usecase.BookingUsecase) *bookingHandler {
 	return &bookingHandler{
-		uc: uc,
+		db:        db,
+		uc:        uc,
 		validator: validator.New(),
 	}
 }
@@ -38,7 +42,20 @@ func (h *bookingHandler) CreateBooking(ctx *fiber.Ctx) error {
 		return rest.BadRequestResponse(ctx, err.Error())
 	}
 
-	if err := h.uc.Create(ctx.Context(), &req); err != nil {
+	// begin tx
+	tx, err := h.db.BeginTx(ctx.Context(), nil)
+	if err != nil {
+		return rest.InternalError(ctx, err)
+	}
+	defer tx.Rollback()
+
+	// usecase
+	if err := h.uc.Create(ctx.Context(), tx, &req); err != nil {
+		return rest.InternalError(ctx, err)
+	}
+
+	// commit tx
+	if err := tx.Commit(); err != nil {
 		return rest.InternalError(ctx, err)
 	}
 
@@ -98,37 +115,47 @@ func (h *bookingHandler) UpdateBooking(ctx *fiber.Ctx) error {
 		return rest.BadRequestResponse(ctx, err.Error())
 	}
 
-	if err := h.uc.Update(ctx.Context(), id, &req); err != nil {
+	booking, err := h.uc.Update(ctx.Context(), id, &req)
+	if err != nil {
 		return rest.InternalError(ctx, err)
 	}
 
-	return rest.SuccessResponse(ctx, "booking updated", req)
+	return rest.SuccessResponse(ctx, "booking updated", booking)
 }
 
-func (h *bookingHandler) ConfirmBooking(ctx *fiber.Ctx) error {
-	id, err := rest.GetParamsID(ctx, bookingID)
-	if err != nil {
-		return err
+func (h *bookingHandler) UpdateBookingStatus(ctx *fiber.Ctx) error {
+	req := dto.UpdateBookingStatus{}
+
+	if err := ctx.BodyParser(&req); err != nil {
+		return rest.BadRequestResponse(ctx, err.Error())
 	}
 
-	if err := h.uc.Confirm(ctx.Context(), id); err != nil {
+	if err := h.validator.Struct(req); err != nil {
+		if err.Error() == "Key: 'UpdateBookingStatus.Status' Error:Field validation for 'Status' failed on the 'oneof' tag" {
+			return rest.BadRequestResponse(ctx, "status: ['pending', 'confirmed', 'cancelled']")
+		}
+		return rest.BadRequestResponse(ctx, err.Error())
+	}
+
+	// begin tx
+	tx, err := h.db.BeginTx(ctx.Context(), nil)
+	if err != nil {
+		return rest.InternalError(ctx, err)
+	}
+	defer tx.Rollback()
+
+	// usecase
+	booking, err := h.uc.UpdateStatus(ctx.Context(), tx, req)
+	if err != nil {
 		return rest.InternalError(ctx, err)
 	}
 
-	return rest.SuccessResponse(ctx, "confirmed booking", nil)
-}
-
-func (h *bookingHandler) CancelBooking(ctx *fiber.Ctx) error {
-	id, err := rest.GetParamsID(ctx, bookingID)
-	if err != nil {
-		return err
-	}
-
-	if err := h.uc.Cancel(ctx.Context(), id); err != nil {
+	// commit tx
+	if err := tx.Commit(); err != nil {
 		return rest.InternalError(ctx, err)
 	}
 
-	return rest.SuccessResponse(ctx, "cancelled booking", nil)
+	return rest.SuccessResponse(ctx, "status updated", booking)
 }
 
 func (h *bookingHandler) AvailableBooking(ctx *fiber.Ctx) error {

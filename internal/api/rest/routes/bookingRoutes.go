@@ -7,21 +7,20 @@ import (
 	"github.com/codepnw/go-ticket-booking/internal/usecase"
 )
 
-func SetupBookingRoutes(rh *rest.ConfigRestHandler) {
-	app := rh.App
+func SetupBookingRoutes(config *rest.ConfigRestHandler) {
+	app := config.App
 
-	repo := repository.NewBookingRepository(rh.DB)
+	repo := repository.NewBookingRepository(config.DB)
 	uc := usecase.NewBookingUsecase(repo)
-	handler := handler.NewBookingHandler(uc)
+	handler := handler.NewBookingHandler(config.DB, uc)
 
 	bookRoutes := app.Group("/bookings")
 
 	bookRoutes.Post("/", handler.CreateBooking)
+	bookRoutes.Post("/status", handler.UpdateBookingStatus)
 	bookRoutes.Get("/:bookingID", handler.GetBookingByID)
 	bookRoutes.Get("/event/:eventID", handler.GetBookingsByEvent)
 	bookRoutes.Get("/user/:userID", handler.GetBookingsByUser)
-	bookRoutes.Get("/:bookingID/confirm", handler.ConfirmBooking)
-	bookRoutes.Get("/:bookingID/cancel", handler.CancelBooking)
 	bookRoutes.Get("/seat/:seatID", handler.AvailableBooking)
 	bookRoutes.Patch("/:bookingID", handler.UpdateBooking)
 }

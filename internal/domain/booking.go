@@ -8,6 +8,7 @@ type Booking struct {
 	EventID     int64      `json:"event_id"`
 	SeatID      int64      `json:"seat_id"`
 	Status      string     `json:"status"`
-	BookedAt    time.Time  `json:"booked_at"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ConfirmedAt *time.Time `json:"confirmed_at"`
 	CancelledAt *time.Time `json:"cancelled_at"`
 }

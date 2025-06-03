@@ -22,7 +22,7 @@ CREATE TABLE bookings (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     event_id INT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
-    status TEXT NOT NULL CHECK (status IN ('booked', 'cancelled')),
+    status TEXT NOT NULL CHECK (status IN ('pending', 'confirmed', 'cancelled')),
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );

@@ -40,10 +40,10 @@ func StartServer(config config.AppConfig) {
 	}
 }
 
-func setupRoutes(rh *rest.ConfigRestHandler) {
-	routes.SetupUserRoutes(rh)
-	routes.SetupEventRoutes(rh)
-	routes.SetupSectionRoutes(rh)
-	routes.SetupSeatRoutes(rh)
-	routes.SetupBookingRoutes(rh)
+func setupRoutes(config *rest.ConfigRestHandler) {
+	routes.SetupUserRoutes(config)
+	routes.SetupEventRoutes(config)
+	routes.SetupSectionRoutes(config)
+	routes.SetupSeatRoutes(config)
+	routes.SetupBookingRoutes(config)
 }

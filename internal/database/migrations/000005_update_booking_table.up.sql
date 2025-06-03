@@ -1,7 +1,4 @@
 ALTER TABLE
-    bookings DROP COLUMN created_at;
-
-ALTER TABLE
     bookings DROP COLUMN updated_at;
 
 ALTER TABLE
@@ -9,6 +6,6 @@ ALTER TABLE
 ADD
     COLUMN seat_id BIGINT NOT NULL REFERENCES seats(id),
 ADD
-    COLUMN booked_at TIMESTAMP NOT NULL,
+    COLUMN confirmed_at TIMESTAMP,
 ADD
     COLUMN cancelled_at TIMESTAMP;
