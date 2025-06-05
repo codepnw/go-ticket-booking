@@ -3,25 +3,27 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/codepnw/go-ticket-booking/internal/domain"
+	"github.com/codepnw/go-ticket-booking/internal/errs"
 )
 
 type EventRepository interface {
 	// Event
 	CreateEvent(ctx context.Context, e *domain.Event) error
 	ListEvents(ctx context.Context) ([]*domain.Event, error)
-	GetEventByID(ctx context.Context, id int) (*domain.Event, error)
+	GetEventByID(ctx context.Context, id int64) (*domain.Event, error)
 	UpdateEvent(ctx context.Context, e *domain.Event) error
-	DeleteEvent(ctx context.Context, id int) error
+	DeleteEvent(ctx context.Context, id int64) error
 
 	// Location
 	CreateLocation(ctx context.Context, l *domain.Location) error
 	ListLocations(ctx context.Context, limit, offset int) ([]*domain.Location, error)
-	GetLocationByID(ctx context.Context, id int) (*domain.Location, error)
+	GetLocationByID(ctx context.Context, id int64) (*domain.Location, error)
 	UpdateLocation(ctx context.Context, l *domain.Location) error
-	DeleteLocation(ctx context.Context, id int) error
+	DeleteLocation(ctx context.Context, id int64) error
 }
 
 type eventRepository struct {
@@ -82,7 +84,7 @@ func (r *eventRepository) ListEvents(ctx context.Context) ([]*domain.Event, erro
 	return events, nil
 }
 
-func (r *eventRepository) GetEventByID(ctx context.Context, id int) (*domain.Event, error) {
+func (r *eventRepository) GetEventByID(ctx context.Context, id int64) (*domain.Event, error) {
 	query := `
 		SELECT id, name, description, start_time, end_time, location_id, created_at, updated_at
 		FROM events WHERE id = $1
@@ -99,6 +101,13 @@ func (r *eventRepository) GetEventByID(ctx context.Context, id int) (*domain.Eve
 		&e.CreatedAt,
 		&e.UpdatedAt,
 	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrEventNotFound
+		}
+		return nil, err
+	}
 
 	return &e, err
 }
@@ -134,7 +143,7 @@ func (r *eventRepository) UpdateEvent(ctx context.Context, e *domain.Event) erro
 	return nil
 }
 
-func (r *eventRepository) DeleteEvent(ctx context.Context, id int) error {
+func (r *eventRepository) DeleteEvent(ctx context.Context, id int64) error {
 	res, err := r.db.ExecContext(ctx, "DELETE FROM events WHERE id = $1", id)
 	if err != nil {
 		return err
@@ -146,7 +155,7 @@ func (r *eventRepository) DeleteEvent(ctx context.Context, id int) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("event id %d not found", id)
+		return errs.ErrEventNotFound
 	}
 
 	return nil
@@ -204,7 +213,7 @@ func (r *eventRepository) ListLocations(ctx context.Context, limit, offset int) 
 	return locs, nil
 }
 
-func (r *eventRepository) GetLocationByID(ctx context.Context, id int) (*domain.Location, error) {
+func (r *eventRepository) GetLocationByID(ctx context.Context, id int64) (*domain.Location, error) {
 	var loc domain.Location
 
 	query := `
@@ -222,7 +231,14 @@ func (r *eventRepository) GetLocationByID(ctx context.Context, id int) (*domain.
 		&loc.UpdatedAt,
 	)
 
-	return &loc, err
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrEventNotFound
+		}
+		return nil, err
+	}
+
+	return &loc, nil
 }
 
 func (r *eventRepository) UpdateLocation(ctx context.Context, l *domain.Location) error {
@@ -250,13 +266,13 @@ func (r *eventRepository) UpdateLocation(ctx context.Context, l *domain.Location
 	}
 
 	if row == 0 {
-		return fmt.Errorf("location id %d not found", l.ID)
+		return errs.ErrLocationNotFound
 	}
 
 	return nil
 }
 
-func (r *eventRepository) DeleteLocation(ctx context.Context, id int) error {
+func (r *eventRepository) DeleteLocation(ctx context.Context, id int64) error {
 	res, err := r.db.ExecContext(ctx, "DELETE FROM locations WHERE id = $1", id)
 	if err != nil {
 		return err
@@ -268,7 +284,7 @@ func (r *eventRepository) DeleteLocation(ctx context.Context, id int) error {
 	}
 
 	if rows == 0 {
-		return fmt.Errorf("location id %d not found", id)
+		return errs.ErrLocationNotFound
 	}
 
 	return nil

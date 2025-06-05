@@ -20,7 +20,7 @@ func NewEventHandler(uc usecase.EventUsecase) *eventHandler {
 	}
 }
 
-func (h *eventHandler) AddEvent(ctx *fiber.Ctx) error {
+func (h *eventHandler) CreateEvent(ctx *fiber.Ctx) error {
 	var req dto.EventRequest
 	if err := ctx.BodyParser(&req); err != nil {
 		return rest.BadRequestResponse(ctx, err.Error())
@@ -34,13 +34,16 @@ func (h *eventHandler) AddEvent(ctx *fiber.Ctx) error {
 	return rest.SuccessResponse(ctx, "", event)
 }
 
-func (h *eventHandler) EditEvent(ctx *fiber.Ctx) error {
-	var req dto.EventRequest
+func (h *eventHandler) UpdateEvent(ctx *fiber.Ctx) error {
+	var req dto.EventUpdateRequest
 	if err := ctx.BodyParser(&req); err != nil {
 		return rest.BadRequestResponse(ctx, "")
 	}
 
-	id, _ := ctx.ParamsInt("id")
+	id, err := rest.GetParamsID(ctx, "id")
+	if err != nil {
+		return err
+	}
 
 	if err := h.uc.UpdateEvent(ctx.Context(), id, &req); err != nil {
 		return rest.InternalError(ctx, err)
@@ -59,7 +62,10 @@ func (h *eventHandler) ListEvents(ctx *fiber.Ctx) error {
 }
 
 func (h *eventHandler) GetEventByID(ctx *fiber.Ctx) error {
-	id, _ := ctx.ParamsInt("id")
+	id, err := rest.GetParamsID(ctx, "id")
+	if err != nil {
+		return err
+	}
 
 	event, err := h.uc.GetEventByID(ctx.Context(), id)
 	if err != nil {
@@ -70,7 +76,10 @@ func (h *eventHandler) GetEventByID(ctx *fiber.Ctx) error {
 }
 
 func (h *eventHandler) DeleteEvent(ctx *fiber.Ctx) error {
-	id, _ := ctx.ParamsInt("id")
+	id, err := rest.GetParamsID(ctx, "id")
+	if err != nil {
+		return err
+	}
 
 	if err := h.uc.DeleteEvent(ctx.Context(), id); err != nil {
 		return rest.InternalError(ctx, err)
@@ -98,7 +107,11 @@ func (h *eventHandler) CreateLocation(ctx *fiber.Ctx) error {
 }
 
 func (h *eventHandler) UpdateLocation(ctx *fiber.Ctx) error {
-	id, _ := ctx.ParamsInt("id")
+	id, err := rest.GetParamsID(ctx, "id")
+	if err != nil {
+		return err
+	}
+
 	var req dto.LocationUpdateRequest
 
 	if err := ctx.BodyParser(&req); err != nil {
@@ -129,7 +142,10 @@ func (h *eventHandler) ListLocations(ctx *fiber.Ctx) error {
 }
 
 func (h *eventHandler) GetLocation(ctx *fiber.Ctx) error {
-	id, _ := ctx.ParamsInt("id")
+	id, err := rest.GetParamsID(ctx, "id")
+	if err != nil {
+		return err
+	}
 
 	location, err := h.uc.GetLocationByID(ctx.Context(), id)
 	if err != nil {
@@ -140,7 +156,10 @@ func (h *eventHandler) GetLocation(ctx *fiber.Ctx) error {
 }
 
 func (h *eventHandler) DeleteLocation(ctx *fiber.Ctx) error {
-	id, _ := ctx.ParamsInt("id")
+	id, err := rest.GetParamsID(ctx, "id")
+	if err != nil {
+		return err
+	}
 
 	if err := h.uc.DeleteLocation(ctx.Context(), id); err != nil {
 		return rest.InternalError(ctx, err)
