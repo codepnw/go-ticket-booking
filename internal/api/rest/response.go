@@ -28,6 +28,12 @@ func CreatedResponse(ctx *fiber.Ctx, msg string, data any) error {
 	})
 }
 
+func NotFoundResponse(ctx *fiber.Ctx, msg string) error {
+	return ctx.Status(http.StatusNotFound).JSON(&fiber.Map{
+		"message": msg,
+	})
+}
+
 func BadRequestResponse(ctx *fiber.Ctx, msg string) error {
 	if msg == "" {
 		msg = "please provide valid inputs"
@@ -43,7 +49,7 @@ func InternalError(ctx *fiber.Ctx, err error) error {
 func GetParamsID(ctx *fiber.Ctx, key string) (int64, error) {
 	id, err := ctx.ParamsInt(key)
 	if err != nil {
-		return -1, BadRequestResponse(ctx, "invalid params id")
+		return 0, BadRequestResponse(ctx, "invalid params id")
 	}
 	return int64(id), nil
 }

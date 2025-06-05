@@ -4,18 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/codepnw/go-ticket-booking/internal/domain"
-	"github.com/codepnw/go-ticket-booking/internal/dto"
+	"github.com/codepnw/go-ticket-booking/internal/errs"
 )
 
 type SeatRepository interface {
-	Create(ctx context.Context, seats []*domain.Seat) error
+	Create(ctx context.Context, tx *sql.Tx, seat *domain.Seat) error
 	GetSeatsBySectionID(ctx context.Context, sectionID int64) ([]*domain.Seat, error)
 	GetAvailableSeatsByEvent(ctx context.Context, eventID int64) ([]*domain.Seat, error)
-	UpdateSeat(ctx context.Context, seatID int64, input *dto.UpdateSeatRequest) error
+	GetSeatByID(ctx context.Context, id int64) (*domain.Seat, error)
+	UpdateSeat(ctx context.Context, s *domain.Seat) error
 	DeleteSeat(ctx context.Context, seatID int64) error
 	DeleteSeatsBySection(ctx context.Context, sectionID int64) error
 }
@@ -28,29 +27,26 @@ func NewSeatRepository(db *sql.DB) SeatRepository {
 	return &seatRepository{db: db}
 }
 
-func (r *seatRepository) Create(ctx context.Context, seats []*domain.Seat) error {
-	if len(seats) == 0 {
-		return nil
-	}
-
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin tx failed: %w", err)
-	}
-
+func (r *seatRepository) Create(ctx context.Context, tx *sql.Tx, seat *domain.Seat) error {
 	query := `
 		INSERT INTO seats (section_id, row_label, seat_number) 
 		VALUES ($1, $2, $3)
 	`
-	for _, seat := range seats {
-		_, err := tx.ExecContext(ctx, query, seat.SectionID, seat.RowLabel, seat.SeatNumber)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("insert seats failed: %w", err)
-		}
+	res, err := tx.ExecContext(ctx, query, seat.SectionID, seat.RowLabel, seat.SeatNumber)
+	if err != nil {
+		return err
 	}
 
-	return tx.Commit()
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rows == 0 {
+		return errors.New("no seat inserted")
+	}
+
+	return err
 }
 
 func (r *seatRepository) GetSeatsBySectionID(ctx context.Context, sectionID int64) ([]*domain.Seat, error) {
@@ -117,35 +113,54 @@ func (r *seatRepository) GetAvailableSeatsByEvent(ctx context.Context, eventID i
 	return seats, nil
 }
 
-func (r *seatRepository) UpdateSeat(ctx context.Context, seatID int64, input *dto.UpdateSeatRequest) error {
-	query := `UPDATE seats SET`
-	params := []any{}
-	i := 1
-
-	if input.RowLabel != nil {
-		query += fmt.Sprintf(" row_label = $%d,", i)
-		params = append(params, *input.RowLabel)
-		i++
+func (r *seatRepository) GetSeatByID(ctx context.Context, id int64) (*domain.Seat, error) {
+	s := domain.Seat{}
+	query := `
+		SELECT id, section_id, row_label, seat_number, is_available
+		FROM seats WHERE id = $1
+	`
+	err := r.db.QueryRowContext(ctx, query).Scan(
+		&s.ID,
+		&s.SectionID,
+		&s.RowLabel,
+		&s.SectionID,
+		&s.IsAvailable,
+	)
+	if err != nil {
+		return nil, err
 	}
 
-	if input.SeatNumber != nil {
-		query += fmt.Sprintf(" seat_number = $%d,", i)
-		params = append(params, *input.SeatNumber)
-		i++
+	return &s, nil
+}
+
+func (r *seatRepository) UpdateSeat(ctx context.Context, s *domain.Seat) error {
+	query := `
+		UPDATE seats SET section_id = $1, row_label = $2, seat_number = $3, is_available = $4
+		WHERE id = $5
+	`
+	res, err := r.db.ExecContext(
+		ctx,
+		query,
+		s.SectionID,
+		s.RowLabel,
+		s.SeatNumber,
+		s.IsAvailable,
+		s.ID,
+	)
+	if err != nil {
+		return err
 	}
 
-	if input.IsAvailable != nil {
-		query += fmt.Sprintf(" is_available = $%d,", i)
-		params = append(params, *input.IsAvailable)
-		i++
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
 	}
 
-	query = strings.TrimSuffix(query, ",")
-	query += fmt.Sprintf(" WHERE id = $%d", i)
-	params = append(params, seatID)
+	if rows == 0 {
+		return errs.ErrSeatNotFound
+	}
 
-	_, err := r.db.ExecContext(ctx, query, params...)
-	return err
+	return nil
 }
 
 func (r *seatRepository) DeleteSeat(ctx context.Context, seatID int64) error {
@@ -160,7 +175,7 @@ func (r *seatRepository) DeleteSeat(ctx context.Context, seatID int64) error {
 	}
 
 	if rows == 0 {
-		return errors.New("seat id not found")
+		return errs.ErrSeatNotFound
 	}
 
 	return nil
@@ -178,7 +193,7 @@ func (r *seatRepository) DeleteSeatsBySection(ctx context.Context, sectionID int
 	}
 
 	if rows == 0 {
-		return errors.New("section id not found")
+		return errs.ErrSeatNotFound
 	}
 
 	return nil

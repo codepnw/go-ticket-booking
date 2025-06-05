@@ -7,18 +7,18 @@ import (
 	"github.com/codepnw/go-ticket-booking/internal/usecase"
 )
 
-func SetupSeatRoutes(rh *rest.ConfigRestHandler) {
+func SetupSeatRoutes(config *rest.ConfigRestHandler) {
 	const (
 		sectionID = "/section/:sectionID"
 		seatID    = "/:seatID"
 		eventID   = "/event/:eventID"
 	)
 
-	app := rh.App
+	app := config.App
 
-	repo := repository.NewSeatRepository(rh.DB)
+	repo := repository.NewSeatRepository(config.DB)
 	uc := usecase.NewSeatRepository(repo)
-	handler := handler.NewSeatHandler(uc)
+	handler := handler.NewSeatHandler(config.DB, uc)
 
 	seatRoutes := app.Group("/seats")
 

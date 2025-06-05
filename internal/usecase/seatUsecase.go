@@ -2,7 +2,9 @@ package usecase
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 
 	"github.com/codepnw/go-ticket-booking/internal/domain"
 	"github.com/codepnw/go-ticket-booking/internal/dto"
@@ -10,7 +12,7 @@ import (
 )
 
 type SeatUsecase interface {
-	CreateSeats(ctx context.Context, req *dto.CreateSeatsRequest) error
+	CreateSeats(ctx context.Context, tx *sql.Tx, req *dto.CreateSeatsRequest) error
 	GetSeatsBySectionID(ctx context.Context, sectionID int64) ([]*domain.Seat, error)
 	GetAvailableSeatsByEvent(ctx context.Context, eventID int64) ([]*domain.Seat, error)
 	UpdateSeat(ctx context.Context, seatID int64, input *dto.UpdateSeatRequest) error
@@ -26,22 +28,26 @@ func NewSeatRepository(repo repository.SeatRepository) SeatUsecase {
 	return &seatUsecase{repo: repo}
 }
 
-func (u *seatUsecase) CreateSeats(ctx context.Context, req *dto.CreateSeatsRequest) error {
+func (u *seatUsecase) CreateSeats(ctx context.Context, tx *sql.Tx, req *dto.CreateSeatsRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
-	seats := make([]*domain.Seat, 0, len(req.Seats))
-
-	for _, s := range req.Seats {
-		seat := domain.Seat{
-			SectionID:  s.SectionID,
-			RowLabel:   s.RowLabel,
-			SeatNumber: s.SeatNumber,
-		}
-		seats = append(seats, &seat)
+	if len(req.Seats) == 0 {
+		return errors.New("no seats to create")
 	}
 
-	return u.repo.Create(ctx, seats)
+	for _, seat := range req.Seats {
+		s := domain.Seat{
+			SectionID:  seat.SectionID,
+			RowLabel:   seat.RowLabel,
+			SeatNumber: seat.SeatNumber,
+		}
+		if err := u.repo.Create(ctx, tx, &s); err != nil {
+			return fmt.Errorf("create seats failed: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (u *seatUsecase) GetSeatsBySectionID(ctx context.Context, sectionID int64) ([]*domain.Seat, error) {
@@ -58,15 +64,36 @@ func (u *seatUsecase) GetAvailableSeatsByEvent(ctx context.Context, eventID int6
 	return u.repo.GetAvailableSeatsByEvent(ctx, eventID)
 }
 
-func (u *seatUsecase) UpdateSeat(ctx context.Context, seatID int64, input *dto.UpdateSeatRequest) error {
+func (u *seatUsecase) UpdateSeat(ctx context.Context, seatID int64, req *dto.UpdateSeatRequest) error {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
-	if input.RowLabel == nil && input.SeatNumber == nil && input.IsAvailable == nil {
+	seat, err := u.repo.GetSeatByID(ctx, seatID)
+	if err != nil {
+		return err
+	}
+
+	if req.SectionID == nil && req.RowLabel == nil && req.SeatNumber == nil && req.IsAvailable == nil {
 		return errors.New("no fields to update")
 	}
 
-	return u.repo.UpdateSeat(ctx, seatID, input)
+	if req.SectionID != nil {
+		seat.SectionID = *req.SectionID
+	}
+
+	if req.RowLabel != nil {
+		seat.RowLabel = *req.RowLabel
+	}
+
+	if req.SeatNumber != nil {
+		seat.SeatNumber = *req.SeatNumber
+	}
+
+	if req.IsAvailable != nil {
+		seat.IsAvailable = *req.IsAvailable
+	}
+
+	return u.repo.UpdateSeat(ctx, seat)
 }
 
 func (u *seatUsecase) DeleteSeat(ctx context.Context, seatID int64) error {
@@ -82,4 +109,3 @@ func (u *seatUsecase) DeleteSeatsBySection(ctx context.Context, sectionID int64)
 
 	return u.repo.DeleteSeatsBySection(ctx, sectionID)
 }
-

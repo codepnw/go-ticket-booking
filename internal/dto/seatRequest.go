@@ -11,6 +11,7 @@ type CreateSeatsRequest struct {
 }
 
 type UpdateSeatRequest struct {
+	SectionID   *int64  `json:"section_id"`
 	RowLabel    *string `json:"row_label"`
 	SeatNumber  *int    `json:"seat_number"`
 	IsAvailable *bool   `json:"is_available"`
