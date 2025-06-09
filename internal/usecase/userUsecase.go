@@ -9,6 +9,7 @@ import (
 
 	"github.com/codepnw/go-ticket-booking/internal/domain"
 	"github.com/codepnw/go-ticket-booking/internal/dto"
+	"github.com/codepnw/go-ticket-booking/internal/errs"
 	"github.com/codepnw/go-ticket-booking/internal/helper"
 	"github.com/codepnw/go-ticket-booking/internal/repository"
 )
@@ -16,8 +17,10 @@ import (
 const queryTimeOut = time.Second * 5
 
 type UserUsecase interface {
-	CreateUser(ctx context.Context, req *dto.UserSignup) (string, error)
-	Login(ctx context.Context, req *dto.UserLogin) (string, error)
+	CreateUser(ctx context.Context, req *dto.UserRegisterRequest) (*domain.User, error)
+	Login(ctx context.Context, req *dto.UserLoginRequest) (string, error)
+	GetProfile(ctx context.Context, id int64) (*domain.User, error)
+	UpdateProfile(ctx context.Context, id int64, req *dto.UserUpdateRequest) (*domain.User, error)
 }
 
 type userUsecase struct {
@@ -32,45 +35,114 @@ func NewUserUsecase(userRepo repository.UserRepository, auth helper.Auth) *userU
 	}
 }
 
-func (s *userUsecase) CreateUser(ctx context.Context, req *dto.UserSignup) (string, error) {
+func (u *userUsecase) CreateUser(ctx context.Context, req *dto.UserRegisterRequest) (*domain.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
-	hashed, err := s.auth.GenenrateHashPassword(req.Password)
+	hashed, err := u.auth.GenenrateHashPassword(req.Password)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	user := domain.User{
-		Email:    req.Email,
-		Password: hashed,
+		Email:     req.Email,
+		Password:  hashed,
+		FirstName: req.FirstName,
+		LastName:  req.LastName,
+		Phone:     req.Phone,
+		Role:      "user",
 	}
 
-	err = s.userRepo.Create(ctx, &user)
+	// create user
+	created, err := u.userRepo.Create(ctx, &user)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", fmt.Errorf("create user failed: user not found")
-		}
-		return "", fmt.Errorf("create user failed: %v", err)
+		return nil, fmt.Errorf("create user failed: %v", err)
 	}
 
-	return s.auth.GenerateToken(user.ID, user.Email)
+	// utc time -> thai time
+	t, err := helper.LoadThaiTime(created.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	created.CreatedAt = t
+
+	return created, nil
 }
 
-func (s *userUsecase) Login(ctx context.Context, req *dto.UserLogin) (string, error) {
-	// find user
-	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+func (u *userUsecase) Login(ctx context.Context, req *dto.UserLoginRequest) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
+	defer cancel()
+
+	user, err := u.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", errors.New("user not found")
+			return "", errs.ErrUserNotFound
 		}
 		return "", err
 	}
 
 	// verify password
-	if err = s.auth.VerifyPassword(req.Password, user.Password); err != nil {
+	if err = u.auth.VerifyPassword(req.Password, user.Password); err != nil {
 		return "", err
 	}
 
-	return s.auth.GenerateToken(user.ID, user.Email)
+	now := time.Now().UTC()
+	user.LastLoginAt = &now
+
+	// update last login
+	if err := u.userRepo.UpdateLastLogin(ctx, user); err != nil {
+		return "", err
+	}
+
+	return u.auth.GenerateToken(user.ID, user.Email, user.Role)
+}
+
+func (u *userUsecase) GetProfile(ctx context.Context, id int64) (*domain.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
+	defer cancel()
+
+	user, err := u.userRepo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errs.ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	if err := helper.ConvertUserTimes(user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
+}
+
+func (u *userUsecase) UpdateProfile(ctx context.Context, id int64, req *dto.UserUpdateRequest) (*domain.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
+	defer cancel()
+
+	user, err := u.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.FirstName != nil {
+		user.FirstName = *req.FirstName
+	}
+
+	if req.LastName != nil {
+		user.LastName = *req.LastName
+	}
+
+	if req.Phone != nil {
+		user.Phone = *req.Phone
+	}
+
+	now := time.Now().UTC()
+	user.UpdatedAt = &now
+
+	if err := u.userRepo.UpdateUser(ctx, user); err != nil {
+		return nil, err
+	}
+
+	return user, nil
 }

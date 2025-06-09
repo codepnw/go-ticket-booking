@@ -44,7 +44,7 @@ func (a Auth) VerifyPassword(password, hashedPassword string) error {
 }
 
 // Token : Generate
-func (a Auth) GenerateToken(id uint, email string) (string, error) {
+func (a Auth) GenerateToken(id int64, email, role string) (string, error) {
 	if id == 0 || email == "" {
 		return "", errors.New("required input are missing")
 	}
@@ -52,9 +52,8 @@ func (a Auth) GenerateToken(id uint, email string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"user_id": id,
 		"email":   email,
-		// TODO: role later
-		// "role": role,
-		"exp": time.Now().Add(time.Hour * 24 * 30).Unix(),
+		"role":    role,
+		"exp":     time.Now().Add(time.Hour * 24 * 30).Unix(),
 	})
 
 	tokenStr, err := token.SignedString([]byte(a.secret))
@@ -92,9 +91,9 @@ func (a Auth) VerifyToken(t string) (*domain.User, error) {
 		}
 
 		user := domain.User{}
-		user.ID = uint(claims["user_id"].(float64))
+		user.ID = int64(claims["user_id"].(float64))
 		user.Email = claims["email"].(string)
-		// TODO: role later
+		user.Role = claims["role"].(string)
 
 		return &user, nil
 	}

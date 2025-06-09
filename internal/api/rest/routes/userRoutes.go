@@ -12,8 +12,7 @@ func SetupUserRoutes(rh *rest.ConfigRestHandler) {
 
 	userRepo := repository.NewUserRepository(rh.DB)
 	userUc := usecase.NewUserUsecase(userRepo, rh.Auth)
-
-	handler := handler.UserHandler{Uc: userUc}
+	handler := handler.NewUserHandler(userUc)
 
 	// Public Routes
 	app.Post("/register", handler.Register)
@@ -21,7 +20,6 @@ func SetupUserRoutes(rh *rest.ConfigRestHandler) {
 
 	// Private Routes
 	pvtRoutes := app.Group("/users", rh.Auth.Authorize)
-	pvtRoutes.Post("/profile", handler.CreateProfile)
 	pvtRoutes.Get("/profile", handler.GetProfile)
-	pvtRoutes.Patch("/profile", handler.EditProfile)
+	pvtRoutes.Patch("/profile", handler.UpdateProfile)
 }

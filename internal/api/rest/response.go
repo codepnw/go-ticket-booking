@@ -42,6 +42,12 @@ func BadRequestResponse(ctx *fiber.Ctx, msg string) error {
 	return ctx.Status(http.StatusBadRequest).JSON(&fiber.Map{"message": msg})
 }
 
+func UnauthorizedResponse(ctx *fiber.Ctx) error {
+	return ctx.Status(http.StatusUnauthorized).JSON(&fiber.Map{
+		"message": "unauthorized",
+	})
+}
+
 func InternalError(ctx *fiber.Ctx, err error) error {
 	return ctx.Status(http.StatusInternalServerError).JSON(&fiber.Map{"error": err.Error()})
 }
