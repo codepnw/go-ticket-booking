@@ -19,8 +19,12 @@ const queryTimeOut = time.Second * 5
 type UserUsecase interface {
 	CreateUser(ctx context.Context, req *dto.UserRegisterRequest) (*domain.User, error)
 	Login(ctx context.Context, req *dto.UserLoginRequest) (string, error)
-	GetProfile(ctx context.Context, id int64) (*domain.User, error)
-	UpdateProfile(ctx context.Context, id int64, req *dto.UserUpdateRequest) (*domain.User, error)
+	GetUser(ctx context.Context, id int64) (*domain.User, error)
+	UpdateUser(ctx context.Context, id int64, req *dto.UserUpdateRequest) (*domain.User, error)
+
+	// Admin
+	GetUsers(ctx context.Context, limit, offset int) ([]*domain.User, error)
+	DeleteUser(ctx context.Context, id int64) error
 }
 
 type userUsecase struct {
@@ -97,7 +101,7 @@ func (u *userUsecase) Login(ctx context.Context, req *dto.UserLoginRequest) (str
 	return u.auth.GenerateToken(user.ID, user.Email, user.Role)
 }
 
-func (u *userUsecase) GetProfile(ctx context.Context, id int64) (*domain.User, error) {
+func (u *userUsecase) GetUser(ctx context.Context, id int64) (*domain.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
@@ -116,7 +120,7 @@ func (u *userUsecase) GetProfile(ctx context.Context, id int64) (*domain.User, e
 	return user, nil
 }
 
-func (u *userUsecase) UpdateProfile(ctx context.Context, id int64, req *dto.UserUpdateRequest) (*domain.User, error) {
+func (u *userUsecase) UpdateUser(ctx context.Context, id int64, req *dto.UserUpdateRequest) (*domain.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
@@ -145,4 +149,27 @@ func (u *userUsecase) UpdateProfile(ctx context.Context, id int64, req *dto.User
 	}
 
 	return user, nil
+}
+
+func (u *userUsecase) GetUsers(ctx context.Context, limit, offset int) ([]*domain.User, error) {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
+	defer cancel()
+
+	users, err := u.userRepo.ListUsers(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+func (u *userUsecase) DeleteUser(ctx context.Context, id int64) error {
+	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
+	defer cancel()
+
+	if err := u.userRepo.DeleteUser(ctx, id); err != nil {
+		return err
+	}
+
+	return nil
 }
