@@ -11,6 +11,8 @@ import (
 	"github.com/codepnw/go-ticket-booking/internal/dto"
 	"github.com/codepnw/go-ticket-booking/internal/errs"
 	"github.com/codepnw/go-ticket-booking/internal/helper"
+	"github.com/codepnw/go-ticket-booking/internal/helper/auth"
+	"github.com/codepnw/go-ticket-booking/internal/helper/security"
 	"github.com/codepnw/go-ticket-booking/internal/repository"
 )
 
@@ -18,7 +20,7 @@ const queryTimeOut = time.Second * 5
 
 type UserUsecase interface {
 	CreateUser(ctx context.Context, req *dto.UserRegisterRequest) (*domain.User, error)
-	Login(ctx context.Context, req *dto.UserLoginRequest) (string, error)
+	Login(ctx context.Context, req *dto.UserLoginRequest) (string, string, error)
 	GetUser(ctx context.Context, id int64) (*domain.User, error)
 	UpdateUser(ctx context.Context, id int64, req *dto.UserUpdateRequest) (*domain.User, error)
 
@@ -29,12 +31,14 @@ type UserUsecase interface {
 
 type userUsecase struct {
 	userRepo repository.UserRepository
-	auth     helper.Auth
+	authRepo repository.AuthRepository
+	auth     auth.Auth
 }
 
-func NewUserUsecase(userRepo repository.UserRepository, auth helper.Auth) *userUsecase {
+func NewUserUsecase(userRepo repository.UserRepository, authRepo repository.AuthRepository, auth auth.Auth) UserUsecase {
 	return &userUsecase{
 		userRepo: userRepo,
+		authRepo: authRepo,
 		auth:     auth,
 	}
 }
@@ -43,7 +47,7 @@ func (u *userUsecase) CreateUser(ctx context.Context, req *dto.UserRegisterReque
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
-	hashed, err := u.auth.GenenrateHashPassword(req.Password)
+	hashed, err := security.GenenrateHashPassword(req.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -73,21 +77,21 @@ func (u *userUsecase) CreateUser(ctx context.Context, req *dto.UserRegisterReque
 	return created, nil
 }
 
-func (u *userUsecase) Login(ctx context.Context, req *dto.UserLoginRequest) (string, error) {
+func (u *userUsecase) Login(ctx context.Context, req *dto.UserLoginRequest) (string, string, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
 	user, err := u.userRepo.FindByEmail(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return "", errs.ErrUserNotFound
+			return "", "", errs.ErrUserNotFound
 		}
-		return "", err
+		return "", "", err
 	}
 
 	// verify password
-	if err = u.auth.VerifyPassword(req.Password, user.Password); err != nil {
-		return "", err
+	if err = security.VerifyPassword(req.Password, user.Password); err != nil {
+		return "", "", err
 	}
 
 	now := time.Now().UTC()
@@ -95,10 +99,26 @@ func (u *userUsecase) Login(ctx context.Context, req *dto.UserLoginRequest) (str
 
 	// update last login
 	if err := u.userRepo.UpdateLastLogin(ctx, user); err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return u.auth.GenerateToken(user.ID, user.Email, user.Role)
+	accessToken, err := u.auth.GenerateAccessToken(user.ID, user.Email, user.Role)
+	if err != nil {
+		return "", "", err
+	}
+
+	refreshToken, exp, err := u.auth.GenerateRefreshToken(user.ID, user.Email, user.Role)
+	if err != nil {
+		return "", "", err
+	}
+
+	// save refresh token
+	err = u.authRepo.SaveRefreshToken(ctx, user.ID, refreshToken, exp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return accessToken, refreshToken, nil
 }
 
 func (u *userUsecase) GetUser(ctx context.Context, id int64) (*domain.User, error) {

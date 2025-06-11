@@ -8,9 +8,10 @@ import (
 )
 
 type AppConfig struct {
-	AppPort   string
-	JWTSecret string
-	DBAddr    string
+	AppPort          string
+	DBAddr           string
+	JWTSecret        string
+	JWTRefreshSecret string
 }
 
 func SetupConfig(envPath string) (*AppConfig, error) {
@@ -34,9 +35,15 @@ func SetupConfig(envPath string) (*AppConfig, error) {
 		return nil, fmt.Errorf("JWT_SECRET not found")
 	}
 
+	jwtRefreshSecret, ok := os.LookupEnv("JWT_REFRESH_SECRET")
+	if !ok {
+		return nil, fmt.Errorf("JWT_REFRESH_SECRET not found")
+	}
+
 	return &AppConfig{
-		AppPort:   appPort,
-		DBAddr:    dbAddr,
-		JWTSecret: jwtSecret,
+		AppPort:          appPort,
+		DBAddr:           dbAddr,
+		JWTSecret:        jwtSecret,
+		JWTRefreshSecret: jwtRefreshSecret,
 	}, nil
 }

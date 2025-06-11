@@ -7,7 +7,7 @@ import (
 	"github.com/codepnw/go-ticket-booking/internal/api/rest"
 	"github.com/codepnw/go-ticket-booking/internal/api/rest/routes"
 	"github.com/codepnw/go-ticket-booking/internal/database"
-	"github.com/codepnw/go-ticket-booking/internal/helper"
+	"github.com/codepnw/go-ticket-booking/internal/helper/auth"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -20,7 +20,7 @@ func StartServer(config config.AppConfig) {
 	}
 	defer db.Close()
 
-	auth := helper.SetupAuth(config.JWTSecret)
+	auth := auth.SetupAuth(config.JWTSecret, config.JWTRefreshSecret)
 
 	rhConfig := &rest.ConfigRestHandler{
 		App:  app,

@@ -10,15 +10,19 @@ import (
 func SetupUserRoutes(config *rest.ConfigRestHandler) {
 	app := config.App
 
+	authRepo := repository.NewAuthRepository(config.DB)
+	authUc := usecase.NewAuthUsecase(authRepo, config.Auth)
+
 	userRepo := repository.NewUserRepository(config.DB)
-	userUc := usecase.NewUserUsecase(userRepo, config.Auth)
-	handler := handler.NewUserHandler(userUc)
+	userUc := usecase.NewUserUsecase(userRepo, authRepo, config.Auth)
+
+	handler := handler.NewUserHandler(userUc, authUc)
 
 	// Public Routes
 	app.Post("/register", handler.Register)
 	app.Post("/login", handler.Login)
+	app.Post("/auth/refresh-token", handler.RefreshToken)
 	// TODO
-	// app.Get("/auth/refresh-token", handler.RefreshToken)
 	// app.Get("/auth/forgot-password", handler.ForgotPassword)
 	// app.Get("/auth/reset-password", handler.ResetPassword)
 
@@ -26,8 +30,8 @@ func SetupUserRoutes(config *rest.ConfigRestHandler) {
 	pvt := app.Group("/users", config.Auth.Authorize)
 	pvt.Get("/profile", handler.GetProfile)
 	pvt.Patch("/profile", handler.UpdateProfile)
+	pvt.Get("/logout", handler.Logout)
 	// TODO
-	// pvt.Get("/logout", handler.Logout)
 	// pvt.Get("/change-password", handler.ChangePassword)
 
 	// Admin

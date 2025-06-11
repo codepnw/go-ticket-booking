@@ -1,0 +1,2 @@
+ALTER TABLE refresh_tokens
+DROP CONSTRAINT IF EXISTS refresh_tokens_user_id_key;

@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/codepnw/go-ticket-booking/internal/helper"
+	"github.com/codepnw/go-ticket-booking/internal/helper/auth"
 	"github.com/gofiber/fiber/v2"
 )
 
 type ConfigRestHandler struct {
 	App  *fiber.App
-	Auth helper.Auth
+	Auth auth.Auth
 	DB   *sql.DB
 }
 
@@ -19,7 +19,7 @@ func NewRestHandler(e *ConfigRestHandler) (*ConfigRestHandler, error) {
 		return nil, errors.New("APP is required")
 	}
 
-	if e.Auth == (helper.Auth{}) {
+	if e.Auth == (auth.Auth{}) {
 		return nil, errors.New("AUTH is required")
 	}
 
