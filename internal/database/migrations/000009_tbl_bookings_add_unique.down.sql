@@ -1,0 +1,2 @@
+ALTER TABLE bookings 
+DROP CONSTRAINT IF EXISTS unique_booking;

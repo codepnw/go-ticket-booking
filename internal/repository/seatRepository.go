@@ -119,7 +119,7 @@ func (r *seatRepository) GetSeatByID(ctx context.Context, id int64) (*domain.Sea
 		SELECT id, section_id, row_label, seat_number, is_available
 		FROM seats WHERE id = $1
 	`
-	err := r.db.QueryRowContext(ctx, query).Scan(
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&s.ID,
 		&s.SectionID,
 		&s.RowLabel,

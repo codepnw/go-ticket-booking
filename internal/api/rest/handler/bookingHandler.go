@@ -43,21 +43,21 @@ func (h *bookingHandler) CreateBooking(ctx *fiber.Ctx) error {
 	}
 
 	// begin tx
-	tx, err := h.db.BeginTx(ctx.Context(), nil)
-	if err != nil {
-		return rest.InternalError(ctx, err)
-	}
-	defer tx.Rollback()
+	// tx, err := h.db.BeginTx(ctx.Context(), nil)
+	// if err != nil {
+	// 	return rest.InternalError(ctx, err)
+	// }
+	// defer tx.Rollback()
 
 	// usecase
-	if err := h.uc.Create(ctx.Context(), tx, &req); err != nil {
+	if err := h.uc.Create(ctx.Context(), &req); err != nil {
 		return rest.InternalError(ctx, err)
 	}
 
 	// commit tx
-	if err := tx.Commit(); err != nil {
-		return rest.InternalError(ctx, err)
-	}
+	// if err := tx.Commit(); err != nil {
+	// 	return rest.InternalError(ctx, err)
+	// }
 
 	return rest.CreatedResponse(ctx, "booking created", req)
 }

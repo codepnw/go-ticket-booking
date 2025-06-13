@@ -9,10 +9,13 @@ import (
 
 func SetupBookingRoutes(config *rest.ConfigRestHandler) {
 	app := config.App
+	db := config.DB
 
-	repo := repository.NewBookingRepository(config.DB)
-	uc := usecase.NewBookingUsecase(repo)
-	handler := handler.NewBookingHandler(config.DB, uc)
+	sectRepo := repository.NewSectionRepository(db)
+	seatRepo := repository.NewSeatRepository(db)
+	bookRepo := repository.NewBookingRepository(db)
+	uc := usecase.NewBookingUsecase(db, bookRepo, seatRepo, sectRepo)
+	handler := handler.NewBookingHandler(db, uc)
 
 	bookRoutes := app.Group("/bookings")
 
