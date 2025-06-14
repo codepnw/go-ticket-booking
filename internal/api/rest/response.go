@@ -52,6 +52,10 @@ func ForbiddenResponse(ctx *fiber.Ctx) error {
 	return ctx.Status(http.StatusForbidden).JSON(&fiber.Map{"message": "admin only"})
 }
 
+func ConflictResponse(ctx *fiber.Ctx, err error) error {
+	return ctx.Status(http.StatusConflict).JSON(&fiber.Map{"message": err.Error()})
+}
+
 func InternalError(ctx *fiber.Ctx, err error) error {
 	return ctx.Status(http.StatusInternalServerError).JSON(&fiber.Map{"error": err.Error()})
 }

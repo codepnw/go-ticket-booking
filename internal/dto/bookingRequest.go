@@ -1,5 +1,7 @@
 package dto
 
+import "time"
+
 type BookingStatus string
 
 const (
@@ -20,7 +22,31 @@ type UpdateBookingRequest struct {
 	SeatID  *int64 `json:"seat_id"`
 }
 
-type UpdateBookingStatus struct {
-	ID     int64         `json:"id" validate:"required"`
-	Status BookingStatus `json:"status" validate:"required,oneof=confirmed cancelled"`
+type BookingResponse struct {
+	ID          int64        `json:"id"`
+	User        bookingUser  `json:"user"`
+	Event       bookingEvent `json:"event"`
+	Seat        bookingSeat  `json:"seat"`
+	Status      string       `json:"status"`
+	CreatedAt   time.Time    `json:"created_at"`
+	ConfirmedAt *time.Time   `json:"confirmed_at"`
+	CancelledAt *time.Time   `json:"cancelled_at"`
+}
+
+type bookingEvent struct {
+	EventID   int64  `json:"event_id"`
+	EventName string `json:"event_name"`
+}
+
+type bookingSeat struct {
+	SeatID     int64  `json:"seat_id"`
+	SeatNumber int    `json:"seat_number"`
+	RowLabel   string `json:"row_label"`
+}
+
+type bookingUser struct {
+	UserID    int64  `json:"user_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
 }

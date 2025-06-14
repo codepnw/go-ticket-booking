@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/codepnw/go-ticket-booking/internal/domain"
 	"github.com/codepnw/go-ticket-booking/internal/dto"
@@ -15,20 +14,20 @@ import (
 
 type BookingUsecase interface {
 	Create(ctx context.Context, req *dto.CreateBookingRequest) error
-	GetByID(ctx context.Context, id int64) (*domain.Booking, error)
-	ListByUserID(ctx context.Context, userID int64) ([]*domain.Booking, error)
-	ListByEventID(ctx context.Context, eventID int64) ([]*domain.Booking, error)
-	Update(ctx context.Context, bookingID int64, req *dto.UpdateBookingRequest) (*domain.Booking, error)
-	UpdateStatus(ctx context.Context, tx *sql.Tx, req dto.UpdateBookingStatus) (*domain.Booking, error)
+	GetByID(ctx context.Context, id int64) (*dto.BookingResponse, error)
+	ListByUserID(ctx context.Context, userID int64) ([]*dto.BookingResponse, error)
+	ListByEventID(ctx context.Context, eventID int64) ([]*dto.BookingResponse, error)
+	ChangeSeat(ctx context.Context, bookingID, newSeatID int64) error
+	ConfirmBooking(ctx context.Context, bookingID int64) (err error)
+	CancelBooking(ctx context.Context, bookingID int64) (err error)
 	IsAvailable(ctx context.Context, seatID int64) (bool, error)
 }
 
 type bookingUsecase struct {
-	db        *sql.DB
-	bookRepo  repository.BookingRepository
-	eventRepo repository.EventRepository
-	seatRepo  repository.SeatRepository
-	sectRepo  repository.SectionRepository
+	db       *sql.DB
+	bookRepo repository.BookingRepository
+	seatRepo repository.SeatRepository
+	sectRepo repository.SectionRepository
 }
 
 func NewBookingUsecase(
@@ -107,14 +106,14 @@ func (u *bookingUsecase) Create(ctx context.Context, req *dto.CreateBookingReque
 	return
 }
 
-func (u *bookingUsecase) GetByID(ctx context.Context, id int64) (*domain.Booking, error) {
+func (u *bookingUsecase) GetByID(ctx context.Context, id int64) (*dto.BookingResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
 	res, err := u.bookRepo.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("booking not found")
+			return nil, errs.ErrBookingNotFound
 		}
 		return nil, err
 	}
@@ -122,84 +121,130 @@ func (u *bookingUsecase) GetByID(ctx context.Context, id int64) (*domain.Booking
 	return res, nil
 }
 
-func (u *bookingUsecase) ListByUserID(ctx context.Context, userID int64) ([]*domain.Booking, error) {
+func (u *bookingUsecase) ListByUserID(ctx context.Context, userID int64) ([]*dto.BookingResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
 	return u.bookRepo.ListByUserID(ctx, userID)
 }
 
-func (u *bookingUsecase) ListByEventID(ctx context.Context, eventID int64) ([]*domain.Booking, error) {
+func (u *bookingUsecase) ListByEventID(ctx context.Context, eventID int64) ([]*dto.BookingResponse, error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
 	return u.bookRepo.ListByEventID(ctx, eventID)
 }
 
-func (u *bookingUsecase) Update(ctx context.Context, bookingID int64, req *dto.UpdateBookingRequest) (*domain.Booking, error) {
+func (u *bookingUsecase) ChangeSeat(ctx context.Context, bookingID, newSeatID int64) error {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
 	booking, err := u.bookRepo.GetByID(ctx, bookingID)
 	if err != nil {
-		return nil, err
+		return errs.ErrBookingNotFound
 	}
 
-	if req.UserID == nil && req.EventID == nil && req.SeatID == nil {
-		return booking, errors.New("no fields to update")
+	newSeat, err := u.seatRepo.GetSeatByID(ctx, newSeatID)
+	if err != nil {
+		return errs.ErrSeatNotFound
 	}
 
-	if req.UserID != nil {
-		booking.UserID = *req.UserID
+	// check event owner
+	section, err := u.sectRepo.GetByID(ctx, newSeat.SectionID)
+	if err != nil {
+		return errs.ErrSectionNotFound
 	}
-	if req.EventID != nil {
-		booking.EventID = *req.EventID
-	}
-	if req.SeatID != nil {
-		booking.SeatID = *req.SeatID
-	}
-
-	if err := u.bookRepo.Update(ctx, booking); err != nil {
-		return nil, err
+	if section.EventID != booking.Event.EventID {
+		return errs.ErrInvalidSeatEvent
 	}
 
-	return booking, nil
+	isAvailable, err := u.bookRepo.IsAvailable(ctx, newSeatID)
+	if err != nil {
+		return err
+	}
+	if !isAvailable {
+		return errs.ErrSeatAlreadyBooked
+	}
+
+	return u.bookRepo.UpdateSeat(ctx, bookingID, newSeatID)
 }
 
-func (u *bookingUsecase) UpdateStatus(ctx context.Context, tx *sql.Tx, req dto.UpdateBookingStatus) (*domain.Booking, error) {
+func (u *bookingUsecase) ConfirmBooking(ctx context.Context, bookingID int64) (err error) {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
 
-	booking, err := u.bookRepo.GetByID(ctx, req.ID)
+	// start tx
+	tx, err := u.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
 
-	if booking.Status == string(req.Status) {
-		return booking, errors.New("status not update")
-	}
-
-	now := time.Now()
-
-	switch req.Status {
-	case dto.StatusConfirmed:
-		booking.ConfirmedAt = &now
-		err = u.bookRepo.Confirm(ctx, tx, booking)
-
-	case dto.StatusCancelled:
-		booking.CancelledAt = &now
-		err = u.bookRepo.Cancel(ctx, tx, booking)
-
-	default:
-		return nil, errors.New("invalid booking status")
-	}
-
+	booking, err := u.bookRepo.GetForUpdate(ctx, tx, bookingID)
 	if err != nil {
-		return nil, err
+		return errs.ErrBookingNotFound
 	}
 
-	booking.Status = string(req.Status)
-	return booking, nil
+	// check seat confirmed
+	confirmed, err := u.bookRepo.IsSeatConfirmed(ctx, tx, booking.SeatID)
+	if err != nil {
+		return err
+	}
+	if confirmed {
+		return errs.ErrSeatAlreadyBooked
+	}
+
+	// confirmed booking
+	err = u.bookRepo.Confirm(ctx, tx, booking.ID)
+	if err != nil {
+		return err
+	}
+
+	// cancel other booking
+	err = u.bookRepo.CancelOtherBooking(ctx, tx, booking.SeatID, booking.ID)
+	return err
+}
+
+func (u *bookingUsecase) CancelBooking(ctx context.Context, bookingID int64) (err error) {
+	// start tx
+	tx, err := u.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+
+	booking, err := u.bookRepo.GetByID(ctx, bookingID)
+	if err != nil {
+		return err
+	}
+
+	if booking.Status == string(dto.StatusCancelled) {
+		return errs.ErrBookingAlreadyCancelled
+	}
+	if booking.Status == string(dto.StatusConfirmed) {
+		return errs.ErrBookingAlreadyConfirmed
+	}
+
+	err = u.bookRepo.Cancel(ctx, tx, bookingID)
+	return
 }
 
 func (u *bookingUsecase) IsAvailable(ctx context.Context, seatID int64) (bool, error) {

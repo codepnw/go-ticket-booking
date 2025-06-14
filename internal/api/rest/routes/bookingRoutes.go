@@ -20,10 +20,10 @@ func SetupBookingRoutes(config *rest.ConfigRestHandler) {
 	bookRoutes := app.Group("/bookings")
 
 	bookRoutes.Post("/", handler.CreateBooking)
-	bookRoutes.Post("/status", handler.UpdateBookingStatus)
 	bookRoutes.Get("/:bookingID", handler.GetBookingByID)
 	bookRoutes.Get("/event/:eventID", handler.GetBookingsByEvent)
 	bookRoutes.Get("/user/:userID", handler.GetBookingsByUser)
 	bookRoutes.Get("/seat/:seatID", handler.AvailableBooking)
-	bookRoutes.Patch("/:bookingID", handler.UpdateBooking)
+	bookRoutes.Put("/:bookingID/confirm", handler.ConfirmBooking)
+	bookRoutes.Put("/:bookingID/cancel", handler.CancelBooking)
 }
