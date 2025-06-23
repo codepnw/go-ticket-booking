@@ -123,7 +123,7 @@ func (r *seatRepository) GetSeatByID(ctx context.Context, id int64) (*domain.Sea
 		&s.ID,
 		&s.SectionID,
 		&s.RowLabel,
-		&s.SectionID,
+		&s.SeatNumber,
 		&s.IsAvailable,
 	)
 	if err != nil {

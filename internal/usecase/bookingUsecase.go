@@ -19,7 +19,6 @@ type BookingUsecase interface {
 	ListByUserID(ctx context.Context, userID int64) ([]*dto.BookingResponse, error)
 	ListByEventID(ctx context.Context, eventID int64) ([]*dto.BookingResponse, error)
 	ListByStatus(ctx context.Context, status string) ([]*dto.BookingResponse, error)
-	ChangeSeat(ctx context.Context, bookingID, newSeatID int64) error
 	ConfirmBooking(ctx context.Context, bookingID int64) (err error)
 	CancelBooking(ctx context.Context, bookingID int64) (err error)
 	IsAvailable(ctx context.Context, seatID int64) (bool, error)
@@ -131,40 +130,6 @@ func (u *bookingUsecase) ListByStatus(ctx context.Context, status string) ([]*dt
 	return u.bookRepo.ListByStatus(ctx, status)
 }
 
-func (u *bookingUsecase) ChangeSeat(ctx context.Context, bookingID, newSeatID int64) error {
-	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
-	defer cancel()
-
-	booking, err := u.bookRepo.GetByID(ctx, bookingID)
-	if err != nil {
-		return errs.ErrBookingNotFound
-	}
-
-	newSeat, err := u.seatRepo.GetSeatByID(ctx, newSeatID)
-	if err != nil {
-		return errs.ErrSeatNotFound
-	}
-
-	// check event owner
-	section, err := u.sectRepo.GetByID(ctx, newSeat.SectionID)
-	if err != nil {
-		return errs.ErrSectionNotFound
-	}
-	if section.EventID != booking.Event.EventID {
-		return errs.ErrInvalidSeatEvent
-	}
-
-	isAvailable, err := u.bookRepo.IsAvailable(ctx, newSeatID)
-	if err != nil {
-		return err
-	}
-	if !isAvailable {
-		return errs.ErrSeatAlreadyBooked
-	}
-
-	return u.bookRepo.UpdateSeat(ctx, bookingID, newSeatID)
-}
-
 func (u *bookingUsecase) ConfirmBooking(ctx context.Context, bookingID int64) error {
 	ctx, cancel := context.WithTimeout(ctx, queryTimeOut)
 	defer cancel()
@@ -274,7 +239,7 @@ func (u *bookingUsecase) UpdateSeat(ctx context.Context, bookingID, newSeatID in
 		}
 
 		// update seat
-		err = u.bookRepo.UpdateSeat(ctx, booking.ID, seat.ID)
+		err = u.bookRepo.UpdateSeat(ctx, tx, booking.ID, seat.ID)
 		if err != nil {
 			return err
 		}

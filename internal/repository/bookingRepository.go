@@ -17,7 +17,7 @@ type BookingRepository interface {
 	ListByUserID(ctx context.Context, userID int64) ([]*dto.BookingResponse, error)
 	ListByEventID(ctx context.Context, eventID int64) ([]*dto.BookingResponse, error)
 	ListByStatus(ctx context.Context, status string) ([]*dto.BookingResponse, error)
-	UpdateSeat(ctx context.Context, bookingID, seatID int64) error
+	UpdateSeat(ctx context.Context, tx *sql.Tx, bookingID, seatID int64) error
 	GetForUpdate(ctx context.Context, tx *sql.Tx, id int64) (*domain.Booking, error)
 	IsSeatConfirmed(ctx context.Context, tx *sql.Tx, seatID int64) (bool, error)
 	Confirm(ctx context.Context, tx *sql.Tx, bookingID int64) error
@@ -122,7 +122,13 @@ func (r *bookingRepository) GetForUpdate(ctx context.Context, tx *sql.Tx, id int
 		WHERE id = $1 FOR UPDATE
 	`
 	var b domain.Booking
-	err := tx.QueryRowContext(ctx, query, id).Scan(&b.ID, &b.SeatID, &b.Status)
+	err := tx.QueryRowContext(ctx, query, id).Scan(
+		&b.ID,
+		&b.UserID,
+		&b.EventID,
+		&b.SeatID,
+		&b.Status,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -189,9 +195,12 @@ func (r *bookingRepository) Cancel(ctx context.Context, tx *sql.Tx, bookingID in
 	return nil
 }
 
-func (r *bookingRepository) UpdateSeat(ctx context.Context, bookingID, seatID int64) error {
-	query := `UPDATE bookings SET seat_id = $1 updated_at = NOW() WHERE id = $2`
-	res, err := r.db.ExecContext(ctx, query, seatID, bookingID)
+func (r *bookingRepository) UpdateSeat(ctx context.Context, tx *sql.Tx, bookingID, seatID int64) error {
+	query := `
+		UPDATE bookings SET seat_id = $1, updated_at = NOW() 
+		WHERE id = $2
+	`
+	res, err := tx.ExecContext(ctx, query, seatID, bookingID)
 	if err != nil {
 		return err
 	}
@@ -214,21 +223,8 @@ func (r *bookingRepository) CancelOtherBooking(ctx context.Context, tx *sql.Tx, 
 		SET status = 'cancelled', cancelled_at = NOW() 
 		WHERE seat_id = $1 AND status = 'pending' AND id != $2
 	`
-	res, err := tx.ExecContext(ctx, query, seatID, bookingID)
-	if err != nil {
-		return err
-	}
-
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
-
-	return nil
+	_, err := tx.ExecContext(ctx, query, seatID, bookingID)
+	return err
 }
 
 func (r *bookingRepository) IsAvailable(ctx context.Context, seatID int64) (bool, error) {
