@@ -33,6 +33,10 @@ type BookingResponse struct {
 	CancelledAt *time.Time   `json:"cancelled_at"`
 }
 
+type BookingSeatUpdateRequest struct {
+	SeatID int64 `json:"seat_id" validate:"required"`
+}
+
 type bookingEvent struct {
 	EventID   int64  `json:"event_id"`
 	EventName string `json:"event_name"`

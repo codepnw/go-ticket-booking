@@ -16,4 +16,5 @@ var (
 	ErrSeatAlreadyBooked       = errors.New("seat already booked")
 	ErrBookingAlreadyConfirmed = errors.New("booking already confirmed")
 	ErrBookingAlreadyCancelled = errors.New("booking already cancelled")
+	ErrBookingNotPending       = errors.New("cannot update status confirmed or cancelled booking")
 )

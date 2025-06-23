@@ -16,6 +16,7 @@ type BookingRepository interface {
 	GetByID(ctx context.Context, id int64) (*dto.BookingResponse, error)
 	ListByUserID(ctx context.Context, userID int64) ([]*dto.BookingResponse, error)
 	ListByEventID(ctx context.Context, eventID int64) ([]*dto.BookingResponse, error)
+	ListByStatus(ctx context.Context, status string) ([]*dto.BookingResponse, error)
 	UpdateSeat(ctx context.Context, bookingID, seatID int64) error
 	GetForUpdate(ctx context.Context, tx *sql.Tx, id int64) (*domain.Booking, error)
 	IsSeatConfirmed(ctx context.Context, tx *sql.Tx, seatID int64) (bool, error)
@@ -106,9 +107,18 @@ func (r *bookingRepository) ListByEventID(ctx context.Context, eventID int64) ([
 	return bookings, nil
 }
 
+func (r *bookingRepository) ListByStatus(ctx context.Context, status string) ([]*dto.BookingResponse, error) {
+	bookings, err := r.listBookings(ctx, "status", status)
+	if err != nil {
+		return nil, err
+	}
+
+	return bookings, nil
+}
+
 func (r *bookingRepository) GetForUpdate(ctx context.Context, tx *sql.Tx, id int64) (*domain.Booking, error) {
 	query := `
-		SELECT id, seat_id, status FROM bookings
+		SELECT id, user_id, event_id, seat_id, status FROM bookings
 		WHERE id = $1 FOR UPDATE
 	`
 	var b domain.Booking
@@ -180,7 +190,7 @@ func (r *bookingRepository) Cancel(ctx context.Context, tx *sql.Tx, bookingID in
 }
 
 func (r *bookingRepository) UpdateSeat(ctx context.Context, bookingID, seatID int64) error {
-	query := `UPDATE bookings SET seat_id = $1 WHERE id = $2`
+	query := `UPDATE bookings SET seat_id = $1 updated_at = NOW() WHERE id = $2`
 	res, err := r.db.ExecContext(ctx, query, seatID, bookingID)
 	if err != nil {
 		return err
@@ -235,10 +245,10 @@ func (r *bookingRepository) IsAvailable(ctx context.Context, seatID int64) (bool
 	return count == 0, nil
 }
 
-func (r *bookingRepository) listBookings(ctx context.Context, where string, id int64) ([]*dto.BookingResponse, error) {
+func (r *bookingRepository) listBookings(ctx context.Context, where string, data any) ([]*dto.BookingResponse, error) {
 	query := fmt.Sprintf("%s%s%s", selectQuery, where, "=$1")
 
-	rows, err := r.db.QueryContext(ctx, query, id)
+	rows, err := r.db.QueryContext(ctx, query, data)
 	if err != nil {
 		return nil, err
 	}

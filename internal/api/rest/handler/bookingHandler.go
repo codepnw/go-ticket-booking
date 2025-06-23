@@ -83,6 +83,31 @@ func (h *bookingHandler) GetBookingsByUser(ctx *fiber.Ctx) error {
 	return rest.SuccessResponse(ctx, "bookings by user", bookings)
 }
 
+func (h *bookingHandler) GetBookingsByStatus(ctx *fiber.Ctx) error {
+	status := ctx.Query("status")
+
+	if status == "" {
+		return rest.BadRequestResponse(ctx, "status query is required")
+	}
+
+	validStatus := map[string]bool{
+		string(dto.StatusPending):   true,
+		string(dto.StatusConfirmed): true,
+		string(dto.StatusCancelled): true,
+	}
+
+	if !validStatus[status] {
+		return rest.BadRequestResponse(ctx, "bookings status: ['pending', 'confirmed', 'cancelled']")
+	}
+
+	bookings, err := h.uc.ListByStatus(ctx.Context(), status)
+	if err != nil {
+		return rest.InternalError(ctx, err)
+	}
+
+	return rest.SuccessResponse(ctx, "bookings by status", bookings)
+}
+
 func (h *bookingHandler) GetBookingsByEvent(ctx *fiber.Ctx) error {
 	id, err := rest.GetParamsID(ctx, eventID)
 	if err != nil {
@@ -157,4 +182,38 @@ func (h *bookingHandler) AvailableBooking(ctx *fiber.Ctx) error {
 	}
 
 	return rest.SuccessResponse(ctx, "available bookings", available)
+}
+
+func (h *bookingHandler) UpdateSeat(ctx *fiber.Ctx) error {
+	bookingID, err := rest.GetParamsID(ctx, "bookingID")
+	if err != nil || bookingID <= 0 {
+		return rest.BadRequestResponse(ctx, "invalid booking id")
+	}
+
+	var req dto.BookingSeatUpdateRequest
+	if err = ctx.BodyParser(&req); err != nil {
+		return rest.BadRequestResponse(ctx, err.Error())
+	}
+
+	if err = h.validator.Struct(req); err != nil {
+		return rest.BadRequestResponse(ctx, err.Error())
+	}
+
+	// update seat
+	if err = h.uc.UpdateSeat(ctx.Context(), bookingID, req.SeatID); err != nil {
+		switch err {
+		case errs.ErrBookingNotFound:
+			return rest.NotFoundResponse(ctx, err.Error())
+		case errs.ErrSeatNotFound:
+			return rest.NotFoundResponse(ctx, err.Error())
+		case errs.ErrInvalidSeatEvent:
+			return rest.BadRequestResponse(ctx, err.Error())
+		case errs.ErrBookingNotPending:
+			return rest.BadRequestResponse(ctx, err.Error())
+		default:
+			return rest.InternalError(ctx, err)
+		}
+	}
+
+	return rest.SuccessResponse(ctx, "seat updated", nil)
 }

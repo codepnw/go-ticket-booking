@@ -3,6 +3,7 @@ module github.com/codepnw/go-ticket-booking
 go 1.23.0
 
 require (
+	github.com/go-playground/assert/v2 v2.2.0
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9

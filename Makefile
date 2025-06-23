@@ -24,3 +24,7 @@ migrate-up:
 
 migrate-down:
 	@migrate -database $(DB_ADDR) -path $(MIGRATIONS_PATH) down $(filter-out $@,$(MAKECMDGOALS))
+
+# Mock
+mocktx:
+	@mockery --name=TxManager --dir=internal/database --output=internal/test/mocks --with-expecter
